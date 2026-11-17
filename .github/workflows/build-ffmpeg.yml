@@ -66,15 +66,14 @@ jobs:
           export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
           export STRIP=$TOOLCHAIN/bin/llvm-strip
 
-          VLC="https://videolan.org"
-          git clone --depth 1 "$VLC/x264.git"
+          GH="https://github.com"
+          git clone --depth 1 "$GH/mirror/x264.git"
           cd x264
           ./configure --prefix=$PREFIX --host=aarch64-linux-android --cross-prefix=$TOOLCHAIN/bin/aarch64-linux-android- --sysroot=$TOOLCHAIN/sysroot --enable-static --enable-pic --disable-cli --disable-asm
           make -j$(nproc) && make install
           cd ..
 
-          GOOG="https://googlesource.com"
-          git clone --depth 1 "$GOOG/libvpx.git"
+          git clone --depth 1 "$GH/webmproject/libvpx.git"
           cd libvpx
           ./configure --prefix=$PREFIX --target=arm64-android-gcc --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic
           make -j$(nproc) && make install
