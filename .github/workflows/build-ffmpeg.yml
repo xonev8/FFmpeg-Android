@@ -1,4 +1,4 @@
-name: Build FFmpeg Static ARM64 (HE-AAC v2)
+name: Build FFmpeg 8.1 Static Android (HE-AAC v2)
 
 on:
   workflow_dispatch:
@@ -6,6 +6,22 @@ on:
 jobs:
   build-ffmpeg-android:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            arch: aarch64
+            cpu: armv8-a
+            host: aarch64-linux-android
+            clang_target: aarch64-linux-android28
+            vpx_target: arm64-android-gcc
+          - abi: armeabi-v7a
+            arch: arm
+            cpu: armv7-a
+            host: armv7a-linux-androideabi
+            clang_target: armv7a-linux-androideabi28
+            vpx_target: armv7-android-gcc
 
     steps:
       - name: Instalar dependências do sistema
@@ -17,82 +33,94 @@ jobs:
         run: |
           NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | sort -V | tail -n 1)
           echo "NDK=$NDK_PATH" >> $GITHUB_ENV
-          echo "PREFIX=$PWD/build_out" >> $GITHUB_ENV
+          echo "PREFIX=$PWD/build_${{ matrix.abi }}" >> $GITHUB_ENV
 
-      - name: Compilar libfdk-aac (HE-AAC v2)
+      - name: Compilar libfdk-aac, libopus e libmp3lame
         run: |
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export AR=$TOOLCHAIN/bin/llvm-ar
-          export CC=$TOOLCHAIN/bin/aarch64-linux-android28-clang
-          export CXX=$TOOLCHAIN/bin/aarch64-linux-android28-clang++
+          export CC=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang
+          export CXX=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang++
           export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
           export STRIP=$TOOLCHAIN/bin/llvm-strip
-
           GH="https://github.com"
+
           git clone --depth 1 "$GH/mstorsjo/fdk-aac.git"
-          cd fdk-aac
-          autoreconf -fiv
-          ./configure --prefix=$PREFIX --host=aarch64-linux-android --enable-static --disable-shared --with-pic
-          make -j$(nproc)
-          make install
+          cd fdk-aac && autoreconf -fiv
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --with-pic
+          make -j$(nproc) && make install && cd ..
 
-      - name: Compilar libopus e libmp3lame
-        run: |
-          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
-          export AR=$TOOLCHAIN/bin/llvm-ar
-          export CC=$TOOLCHAIN/bin/aarch64-linux-android28-clang
-          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
-          export STRIP=$TOOLCHAIN/bin/llvm-strip
-
-          GH="https://github.com"
           git clone --depth 1 "$GH/xiph/opus.git"
-          cd opus
-          ./autogen.sh
-          ./configure --prefix=$PREFIX --host=aarch64-linux-android --enable-static --disable-shared --disable-doc --disable-extra-programs
-          make -j$(nproc) && make install
-          cd ..
+          cd opus && ./autogen.sh
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --disable-doc --disable-extra-programs
+          make -j$(nproc) && make install && cd ..
 
           git clone --depth 1 "$GH/lameproject/lame.git"
           cd lame
-          ./configure --prefix=$PREFIX --host=aarch64-linux-android --enable-static --disable-shared --disable-frontend
-          make -j$(nproc) && make install
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --disable-frontend
+          make -j$(nproc) && make install && cd ..
 
       - name: Compilar libx264 e libvpx (VP9)
         run: |
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export PATH="$TOOLCHAIN/bin:$PATH"
           export AR=$TOOLCHAIN/bin/llvm-ar
-          export CC=$TOOLCHAIN/bin/aarch64-linux-android28-clang
-          export CXX=$TOOLCHAIN/bin/aarch64-linux-android28-clang++
+          export CC=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang
+          export CXX=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang++
+          export AS=$CC
+          export LD=$CC
           export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
           export STRIP=$TOOLCHAIN/bin/llvm-strip
-
+          export STRINGS=$TOOLCHAIN/bin/llvm-strings
+          export NM=$TOOLCHAIN/bin/llvm-nm
           GH="https://github.com"
+
           git clone --depth 1 "$GH/mirror/x264.git"
           cd x264
-          ./configure --prefix=$PREFIX --host=aarch64-linux-android --cross-prefix=$TOOLCHAIN/bin/aarch64-linux-android- --sysroot=$TOOLCHAIN/sysroot --enable-static --enable-pic --disable-cli --disable-asm
-          make -j$(nproc) && make install
-          cd ..
+          ./configure \
+            --prefix=$PREFIX \
+            --host=${{ matrix.host }} \
+            --sysroot=$TOOLCHAIN/sysroot \
+            --enable-static \
+            --enable-pic \
+            --disable-cli \
+            --disable-asm
+          make -j$(nproc) && make install && cd ..
 
           git clone --depth 1 "$GH/webmproject/libvpx.git"
           cd libvpx
-          ./configure --prefix=$PREFIX --target=arm64-android-gcc --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic
-          make -j$(nproc) && make install
+          ./configure \
+            --prefix=$PREFIX \
+            --target=${{ matrix.vpx_target }} \
+            --disable-examples \
+            --disable-tools \
+            --disable-docs \
+            --disable-unit-tests \
+            --enable-vp8 \
+            --enable-vp9 \
+            --enable-pic
+          make -j$(nproc) && make install && cd ..
+
+          git clone --depth 1 "$GH/webmproject/libvpx.git"
+          cd libvpx
+          ./configure --prefix=$PREFIX --target=${{ matrix.vpx_target }} --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic
+          make -j$(nproc) && make install && cd ..
 
       - name: Compilar FFmpeg 8.1 Estático com libfdk-aac
         run: |
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
-
           GH="https://github.com"
+
           git clone --depth 1 --branch n8.1 "$GH/FFmpeg/FFmpeg.git"
           cd FFmpeg
           ./configure \
             --prefix=$PREFIX \
             --target-os=android \
-            --arch=aarch64 \
-            --cpu=armv8-a \
-            --cc=$TOOLCHAIN/bin/aarch64-linux-android28-clang \
-            --cxx=$TOOLCHAIN/bin/aarch64-linux-android28-clang++ \
+            --arch=${{ matrix.arch }} \
+            --cpu=${{ matrix.cpu }} \
+            --cc=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang \
+            --cxx=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang++ \
             --ar=$TOOLCHAIN/bin/llvm-ar \
             --ranlib=$TOOLCHAIN/bin/llvm-ranlib \
             --strip=$TOOLCHAIN/bin/llvm-strip \
@@ -122,10 +150,10 @@ jobs:
           cp $PREFIX/bin/ffmpeg $PREFIX/bin/libffmpeg_bin.so
           cp $PREFIX/bin/ffprobe $PREFIX/bin/libffprobe_bin.so
 
-      - name: Disponibilizar Binários Prontos
+      - name: Disponibilizar Binários Prontos (${{ matrix.abi }})
         uses: actions/upload-artifact@v4
         with:
-          name: FFmpeg-8.1-Android-ARM64-HEAAC
+          name: FFmpeg-8.1-Android-${{ matrix.abi }}-HEAAC
           path: |
-            build_out/bin/libffmpeg_bin.so
-            build_out/bin/libffprobe_bin.so
+            build_${{ matrix.abi }}/bin/libffmpeg_bin.so
+            build_${{ matrix.abi }}/bin/libffprobe_bin.so
