@@ -1,0 +1,129 @@
+name: Build FFmpeg Static ARM64 (HE-AAC v2)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ffmpeg-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Instalar dependências do sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake build-essential cmake git libtool pkg-config texinfo wget yasm nasm ninja-build
+
+      - name: Configurar Android NDK r27c
+        run: |
+          wget -q https://google.com
+          unzip -q android-ndk-r27c-linux.zip
+          echo "NDK=$PWD/android-ndk-r27c" >> $GITHUB_ENV
+          echo "PREFIX=$PWD/build_out" >> $GITHUB_ENV
+
+      - name: Compilar libfdk-aac (HE-AAC v2)
+        run: |
+          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export AR=$TOOLCHAIN/bin/llvm-ar
+          export CC=$TOOLCHAIN/bin/aarch64-linux-android28-clang
+          export CXX=$TOOLCHAIN/bin/aarch64-linux-android28-clang++
+          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          export STRIP=$TOOLCHAIN/bin/llvm-strip
+
+          git clone --depth 1 https://github.com
+          cd fdk-aac
+          autoreconf -fiv
+          ./configure --prefix=$PREFIX --host=aarch64-linux-android --enable-static --disable-shared --with-pic
+          make -j$(nproc)
+          make install
+
+      - name: Compilar libopus e libmp3lame
+        run: |
+          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export AR=$TOOLCHAIN/bin/llvm-ar
+          export CC=$TOOLCHAIN/bin/aarch64-linux-android28-clang
+          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          export STRIP=$TOOLCHAIN/bin/llvm-strip
+
+          git clone --depth 1 https://github.com
+          cd opus
+          ./autogen.sh
+          ./configure --prefix=$PREFIX --host=aarch64-linux-android --enable-static --disable-shared --disable-doc --disable-extra-programs
+          make -j$(nproc) && make install
+          cd ..
+
+          wget -q https://sourceforge.net
+          tar -xzf lame-3.100.tar.gz
+          cd lame-3.100
+          ./configure --prefix=$PREFIX --host=aarch64-linux-android --enable-static --disable-shared --disable-frontend
+          make -j$(nproc) && make install
+
+      - name: Compilar libx264 e libvpx (VP9)
+        run: |
+          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export AR=$TOOLCHAIN/bin/llvm-ar
+          export CC=$TOOLCHAIN/bin/aarch64-linux-android28-clang
+          export CXX=$TOOLCHAIN/bin/aarch64-linux-android28-clang++
+          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          export STRIP=$TOOLCHAIN/bin/llvm-strip
+
+          git clone --depth 1 https://videolan.org
+          cd x264
+          ./configure --prefix=$PREFIX --host=aarch64-linux-android --cross-prefix=$TOOLCHAIN/bin/aarch64-linux-android- --sysroot=$TOOLCHAIN/sysroot --enable-static --enable-pic --disable-cli --disable-asm
+          make -j$(nproc) && make install
+          cd ..
+
+          git clone --depth 1 https://googlesource.com
+          cd libvpx
+          ./configure --prefix=$PREFIX --target=arm64-android-gcc --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic
+          make -j$(nproc) && make install
+
+      - name: Compilar FFmpeg 8.1 Estático com libfdk-aac
+        run: |
+          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
+
+          git clone --depth 1 --branch n8.1 https://github.com
+          cd FFmpeg
+          ./configure \
+            --prefix=$PREFIX \
+            --target-os=android \
+            --arch=aarch64 \
+            --cpu=armv8-a \
+            --cc=$TOOLCHAIN/bin/aarch64-linux-android28-clang \
+            --cxx=$TOOLCHAIN/bin/aarch64-linux-android28-clang++ \
+            --ar=$TOOLCHAIN/bin/llvm-ar \
+            --ranlib=$TOOLCHAIN/bin/llvm-ranlib \
+            --strip=$TOOLCHAIN/bin/llvm-strip \
+            --nm=$TOOLCHAIN/bin/llvm-nm \
+            --enable-cross-compile \
+            --sysroot=$TOOLCHAIN/sysroot \
+            --extra-cflags="-O3 -I$PREFIX/include -fPIE" \
+            --extra-ldflags="-L$PREFIX/lib -pie" \
+            --pkg-config-flags="--static" \
+            --enable-gpl \
+            --enable-nonfree \
+            --enable-static \
+            --disable-shared \
+            --enable-small \
+            --disable-doc \
+            --disable-debug \
+            --enable-libfdk-aac \
+            --enable-libx264 \
+            --enable-libvpx \
+            --enable-libopus \
+            --enable-libmp3lame
+
+          make -j$(nproc)
+          make install
+          $TOOLCHAIN/bin/llvm-strip $PREFIX/bin/ffmpeg
+          $TOOLCHAIN/bin/llvm-strip $PREFIX/bin/ffprobe
+          cp $PREFIX/bin/ffmpeg $PREFIX/bin/libffmpeg_bin.so
+          cp $PREFIX/bin/ffprobe $PREFIX/bin/libffprobe_bin.so
+
+      - name: Disponibilizar Binários Prontos
+        uses: actions/upload-artifact@v4
+        with:
+          name: FFmpeg-8.1-Android-ARM64-HEAAC
+          path: |
+            build_out/bin/libffmpeg_bin.so
+            build_out/bin/libffprobe_bin.so
