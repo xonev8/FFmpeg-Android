@@ -16,12 +16,14 @@ jobs:
             host: aarch64-linux-android
             clang_target: aarch64-linux-android28
             vpx_target: arm64-android-gcc
+            x264_asm: ""
           - abi: armeabi-v7a
             arch: arm
             cpu: armv7-a
             host: armv7a-linux-androideabi
             clang_target: armv7a-linux-androideabi28
             vpx_target: armv7-android-gcc
+            x264_asm: "--disable-asm"
 
     steps:
       - name: Instalar dependências do sistema
@@ -45,6 +47,7 @@ jobs:
           export STRIP=$TOOLCHAIN/bin/llvm-strip
           GH="https://github.com"
 
+          rm -rf fdk-aac opus lame
           git clone --depth 1 "$GH/mstorsjo/fdk-aac.git"
           cd fdk-aac && autoreconf -fiv
           ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --with-pic
@@ -75,14 +78,31 @@ jobs:
           export NM=$TOOLCHAIN/bin/llvm-nm
           GH="https://github.com"
 
+          rm -rf x264 libvpx
           git clone --depth 1 "$GH/mirror/x264.git"
           cd x264
-          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --sysroot=$TOOLCHAIN/sysroot --enable-static --enable-pic --disable-cli --disable-asm
+          ./configure \
+            --prefix=$PREFIX \
+            --host=${{ matrix.host }} \
+            --sysroot=$TOOLCHAIN/sysroot \
+            --enable-static \
+            --enable-pic \
+            --disable-cli \
+            ${{ matrix.x264_asm }}
           make -j$(nproc) && make install && cd ..
 
           git clone --depth 1 "$GH/webmproject/libvpx.git"
           cd libvpx
-          ./configure --prefix=$PREFIX --target=${{ matrix.vpx_target }} --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic
+          ./configure \
+            --prefix=$PREFIX \
+            --target=${{ matrix.vpx_target }} \
+            --disable-examples \
+            --disable-tools \
+            --disable-docs \
+            --disable-unit-tests \
+            --enable-vp8 \
+            --enable-vp9 \
+            --enable-pic
           make -j$(nproc) && make install && cd ..
 
       - name: Compilar FFmpeg 8.1 Estático com libfdk-aac
@@ -107,14 +127,13 @@ jobs:
             --nm=$TOOLCHAIN/bin/llvm-nm \
             --enable-cross-compile \
             --sysroot=$TOOLCHAIN/sysroot \
-            --extra-cflags="-O3 -I$PREFIX/include -fPIE" \
-            --extra-ldflags="-L$PREFIX/lib -pie" \
+            --extra-cflags="-O3 -flto -I$PREFIX/include -fPIE" \
+            --extra-ldflags="-O3 -flto -L$PREFIX/lib -pie" \
             --pkg-config-flags="--static" \
             --enable-gpl \
             --enable-nonfree \
             --enable-static \
             --disable-shared \
-            --enable-small \
             --disable-doc \
             --disable-debug \
             --enable-libfdk-aac \
@@ -131,7 +150,7 @@ jobs:
           cp $PREFIX/bin/ffprobe $PREFIX/bin/libffprobe_bin.so
 
       - name: Disponibilizar Binários Prontos (${{ matrix.abi }})
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: FFmpeg-8.1-Android-${{ matrix.abi }}-HEAAC
           path: |
