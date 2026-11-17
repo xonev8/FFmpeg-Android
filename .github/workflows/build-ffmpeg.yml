@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-ffmpeg-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Instalar dependências do sistema
@@ -13,11 +13,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y autoconf automake build-essential cmake git libtool pkg-config texinfo wget yasm nasm ninja-build
 
-      - name: Configurar Android NDK r27c
+      - name: Localizar Android NDK pré-instalado
         run: |
-          wget -q https://google.com
-          unzip -q android-ndk-r27c-linux.zip
-          echo "NDK=$PWD/android-ndk-r27c" >> $GITHUB_ENV
+          NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | sort -V | tail -n 1)
+          echo "Usando NDK em: $NDK_PATH"
+          echo "NDK=$NDK_PATH" >> $GITHUB_ENV
           echo "PREFIX=$PWD/build_out" >> $GITHUB_ENV
 
       - name: Compilar libfdk-aac (HE-AAC v2)
