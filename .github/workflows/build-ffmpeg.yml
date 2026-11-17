@@ -156,3 +156,25 @@ jobs:
           path: |
             build_${{ matrix.abi }}/bin/libffmpeg_bin.so
             build_${{ matrix.abi }}/bin/libffprobe_bin.so
+            
+      - name: Empacotar ZIP para Release (${{ matrix.abi }})
+        run: |
+          mkdir -p dist
+          cp build_${{ matrix.abi }}/bin/ffmpeg dist/ffmpeg
+          cp build_${{ matrix.abi }}/bin/ffprobe dist/ffprobe
+          cp build_${{ matrix.abi }}/bin/libffmpeg_bin.so dist/libffmpeg_bin.so
+          cp build_${{ matrix.abi }}/bin/libffprobe_bin.so dist/libffprobe_bin.so
+          cd dist && zip -r ../FFmpeg-8.1-Android-${{ matrix.abi }}-HEAAC.zip .
+
+      - name: Publicar na aba Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v8.1-android-heaac
+          name: FFmpeg 8.1 Static Android (HE-AAC v2 / x264 / VP9 / Opus)
+          body: |
+            Binários estáticos do FFmpeg 8.1 e FFprobe 8.1 compilados para Android (`arm64-v8a` e `armeabi-v7a`) com NDK moderno e suporte completo a:
+            - **libfdk-aac** (`aac_he_v2` / `aac_he` / `aac_lc`)
+            - **libx264** (com NEON ativado no `arm64-v8a`)
+            - **libvpx** (VP8 e VP9)
+            - **libopus** e **libmp3lame**
+          files: FFmpeg-8.1-Android-${{ matrix.abi }}-HEAAC.zip
