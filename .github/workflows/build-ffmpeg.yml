@@ -91,8 +91,9 @@ jobs:
           export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
           GH="https://github.com"
 
-          git clone --depth 1 --branch n8.1 "$GH/FFmpeg/FFmpeg.git"
-          cd FFmpeg
+          rm -rf ffmpeg_src
+          git clone --depth 1 --branch n8.1 "$GH/FFmpeg/FFmpeg.git" ffmpeg_src
+          cd ffmpeg_src
           ./configure \
             --prefix=$PREFIX \
             --target-os=android \
