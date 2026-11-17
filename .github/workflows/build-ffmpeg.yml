@@ -52,10 +52,8 @@ jobs:
           make -j$(nproc) && make install
           cd ..
 
-          SF="https://sourceforge.net"
-          wget -q "$SF/lame-3.100.tar.gz"
-          tar -xzf lame-3.100.tar.gz
-          cd lame-3.100
+          git clone --depth 1 "$GH/lameproject/lame.git"
+          cd lame
           ./configure --prefix=$PREFIX --host=aarch64-linux-android --enable-static --disable-shared --disable-frontend
           make -j$(nproc) && make install
 
