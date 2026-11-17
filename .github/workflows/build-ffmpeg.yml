@@ -75,46 +75,14 @@ jobs:
           export NM=$TOOLCHAIN/bin/llvm-nm
           GH="https://github.com"
 
-          rm -rf x264 libvpx
-
           git clone --depth 1 "$GH/mirror/x264.git"
           cd x264
-          ./configure \
-            --prefix=$PREFIX \
-            --host=${{ matrix.host }} \
-            --sysroot=$TOOLCHAIN/sysroot \
-            --enable-static \
-            --enable-pic \
-            --disable-cli \
-            --disable-asm
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --sysroot=$TOOLCHAIN/sysroot --enable-static --enable-pic --disable-cli --disable-asm
           make -j$(nproc) && make install && cd ..
 
           git clone --depth 1 "$GH/webmproject/libvpx.git"
           cd libvpx
-          ./configure \
-            --prefix=$PREFIX \
-            --target=${{ matrix.vpx_target }} \
-            --disable-examples \
-            --disable-tools \
-            --disable-docs \
-            --disable-unit-tests \
-            --enable-vp8 \
-            --enable-vp9 \
-            --enable-pic
-          make -j$(nproc) && make install && cd ..
-
-          git clone --depth 1 "$GH/webmproject/libvpx.git"
-          cd libvpx
-          ./configure \
-            --prefix=$PREFIX \
-            --target=${{ matrix.vpx_target }} \
-            --disable-examples \
-            --disable-tools \
-            --disable-docs \
-            --disable-unit-tests \
-            --enable-vp8 \
-            --enable-vp9 \
-            --enable-pic
+          ./configure --prefix=$PREFIX --target=${{ matrix.vpx_target }} --disable-examples --disable-tools --disable-docs --disable-unit-tests --enable-vp8 --enable-vp9 --enable-pic
           make -j$(nproc) && make install && cd ..
 
       - name: Compilar FFmpeg 8.1 Estático com libfdk-aac
@@ -123,7 +91,6 @@ jobs:
           export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
           GH="https://github.com"
 
-          rm -rf FFmpeg
           git clone --depth 1 --branch n8.1 "$GH/FFmpeg/FFmpeg.git"
           cd FFmpeg
           ./configure \
