@@ -60,7 +60,7 @@ jobs:
 
           git clone --depth 1 "$GH/lameproject/lame.git"
           cd lame
-          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --disable-frontend
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --disable-frontend --with-pic
           make -j$(nproc) && make install && cd ..
 
       - name: Compilar libx264 e libvpx
