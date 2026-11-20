@@ -1,4 +1,4 @@
-name: Build FFmpeg 8.1 Static Android (HE-AAC v2)
+name: Build FFmpeg 8.1 Static Android (HEVC / AVIF / Subtitles / HE-AAC v2)
 
 on:
   workflow_dispatch:
@@ -16,6 +16,7 @@ jobs:
             host: aarch64-linux-android
             clang_target: aarch64-linux-android28
             vpx_target: arm64-android-gcc
+            cmake_arch: arm64-v8a
             x264_asm: ""
           - abi: armeabi-v7a
             arch: arm
@@ -23,6 +24,15 @@ jobs:
             host: armv7a-linux-androideabi
             clang_target: armv7a-linux-androideabi28
             vpx_target: armv7-android-gcc
+            cmake_arch: armeabi-v7a
+            x264_asm: "--disable-asm"
+          - abi: x86_64
+            arch: x86_64
+            cpu: x86-64
+            host: x86_64-linux-android
+            clang_target: x86_64-linux-android28
+            vpx_target: x86_64-android-gcc
+            cmake_arch: x86_64
             x264_asm: "--disable-asm"
 
     steps:
@@ -63,7 +73,7 @@ jobs:
           ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --disable-frontend
           make -j$(nproc) && make install && cd ..
 
-      - name: Compilar libx264 e libvpx (VP9)
+      - name: Compilar libx264, libx265, libvpx e libaom (AVIF)
         run: |
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export PATH="$TOOLCHAIN/bin:$PATH"
@@ -78,7 +88,7 @@ jobs:
           export NM=$TOOLCHAIN/bin/llvm-nm
           GH="https://github.com"
 
-          rm -rf x264 libvpx
+          rm -rf x264 x265_git libvpx aom
           git clone --depth 1 "$GH/mirror/x264.git"
           cd x264
           ./configure \
@@ -90,6 +100,19 @@ jobs:
             --disable-cli \
             ${{ matrix.x264_asm }}
           make -j$(nproc) && make install && cd ..
+
+          git clone --depth 1 "$GH/videolan/x265.git" x265_git
+          mkdir -p x265_git/build && cd x265_git/build
+          cmake ../source -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=${{ matrix.cmake_arch }} \
+            -DANDROID_PLATFORM=android-28 \
+            -DCMAKE_INSTALL_PREFIX=$PREFIX \
+            -DENABLE_SHARED=OFF \
+            -DENABLE_CLI=OFF \
+            -DENABLE_PIC=ON \
+            -DENABLE_ASSEMBLY=$([ "${{ matrix.abi }}" = "arm64-v8a" ] && echo "ON" || echo "OFF")
+          ninja && ninja install && cd ../..
 
           git clone --depth 1 "$GH/webmproject/libvpx.git"
           cd libvpx
@@ -103,6 +126,58 @@ jobs:
             --enable-vp8 \
             --enable-vp9 \
             --enable-pic
+          make -j$(nproc) && make install && cd ..
+
+          git clone --depth 1 https://googlesource.com
+          mkdir -p aom/build && cd aom/build
+          cmake .. -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=${{ matrix.cmake_arch }} \
+            -DANDROID_PLATFORM=android-28 \
+            -DCMAKE_INSTALL_PREFIX=$PREFIX \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DENABLE_DOCS=OFF \
+            -DENABLE_EXAMPLES=OFF \
+            -DENABLE_TESTDATA=OFF \
+            -DENABLE_TESTS=OFF \
+            -DENABLE_TOOLS=OFF \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+          ninja && ninja install && cd ../..
+
+      - name: Compilar FreeType, FriBidi, HarfBuzz e libass (Legendas)
+        run: |
+          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
+          export AR=$TOOLCHAIN/bin/llvm-ar
+          export CC=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang
+          export CXX=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang++
+          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          export STRIP=$TOOLCHAIN/bin/llvm-strip
+          GH="https://github.com"
+
+          rm -rf freetype fribidi harfbuzz libass
+          git clone --depth 1 "$GH/freetype/freetype.git"
+          cd freetype && ./autogen.sh
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --with-pic --without-harfbuzz --without-png --without-zlib --without-bzip2 --without-brotli
+          make -j$(nproc) && make install && cd ..
+
+          git clone --depth 1 "$GH/fribidi/fribidi.git"
+          cd fribidi && ./autogen.sh
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --with-pic --disable-docs
+          make -j$(nproc) && make install && cd ..
+
+          git clone --depth 1 "$GH/harfbuzz/harfbuzz.git"
+          cd harfbuzz && ./autogen.sh
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --with-pic --with-freetype=yes --with-glib=no --with-gobject=no --with-cairo=no --with-fontconfig=no --with-icu=no
+          make -j$(nproc) && make install && cd ..
+
+          cd freetype && make clean
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --with-pic --with-harfbuzz=yes --without-png --without-zlib --without-bzip2 --without-brotli
+          make -j$(nproc) && make install && cd ..
+
+          git clone --depth 1 "$GH/libass/libass.git"
+          cd libass && ./autogen.sh
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --with-pic --disable-fontconfig --disable-require-system-font-provider
           make -j$(nproc) && make install && cd ..
 
       - name: Compilar FFmpeg 8.1 Estático com libfdk-aac
@@ -128,17 +203,24 @@ jobs:
             --enable-cross-compile \
             --sysroot=$TOOLCHAIN/sysroot \
             --extra-cflags="-O3 -flto -I$PREFIX/include -fPIE" \
-            --extra-ldflags="-O3 -flto -L$PREFIX/lib -pie" \
+            --extra-ldflags="-O3 -flto -L$PREFIX/lib -pie -lc++_static -lc++abi" \
             --pkg-config-flags="--static" \
             --enable-gpl \
             --enable-nonfree \
+            --enable-version3 \
             --enable-static \
             --disable-shared \
             --disable-doc \
             --disable-debug \
             --enable-libfdk-aac \
             --enable-libx264 \
+            --enable-libx265 \
             --enable-libvpx \
+            --enable-libaom \
+            --enable-libass \
+            --enable-libfreetype \
+            --enable-libfribidi \
+            --enable-libharfbuzz \
             --enable-libopus \
             --enable-libmp3lame
 
@@ -152,7 +234,7 @@ jobs:
       - name: Disponibilizar Binários Prontos (${{ matrix.abi }})
         uses: actions/upload-artifact@v5
         with:
-          name: FFmpeg-8.1-Android-${{ matrix.abi }}-HEAAC
+          name: FFmpeg-8.1-Android-${{ matrix.abi }}
           path: |
             build_${{ matrix.abi }}/bin/libffmpeg_bin.so
             build_${{ matrix.abi }}/bin/libffprobe_bin.so
@@ -160,21 +242,19 @@ jobs:
       - name: Empacotar ZIP para Release (${{ matrix.abi }})
         run: |
           mkdir -p dist
-          cp build_${{ matrix.abi }}/bin/ffmpeg dist/ffmpeg
-          cp build_${{ matrix.abi }}/bin/ffprobe dist/ffprobe
           cp build_${{ matrix.abi }}/bin/libffmpeg_bin.so dist/libffmpeg_bin.so
           cp build_${{ matrix.abi }}/bin/libffprobe_bin.so dist/libffprobe_bin.so
-          cd dist && zip -r ../FFmpeg-8.1-Android-${{ matrix.abi }}-HEAAC.zip .
+          cd dist && zip -r ../FFmpeg-8.1-Android-${{ matrix.abi }}.zip libffmpeg_bin.so libffprobe_bin.so
 
       - name: Publicar na aba Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v8.1-android-heaac
-          name: FFmpeg 8.1 Static Android (HE-AAC v2 / x264 / VP9 / Opus)
+          tag_name: v8.1-android
+          name: FFmpeg 8.1 Static Android (HEVC / AVIF / Subtitles / HE-AAC v2)
           body: |
-            Binários estáticos do FFmpeg 8.1 e FFprobe 8.1 compilados para Android (`arm64-v8a` e `armeabi-v7a`) com NDK moderno e suporte completo a:
-            - **libfdk-aac** (`aac_he_v2` / `aac_he` / `aac_lc`)
-            - **libx264** (com NEON ativado no `arm64-v8a`)
-            - **libvpx** (VP8 e VP9)
-            - **libopus** e **libmp3lame**
-          files: FFmpeg-8.1-Android-${{ matrix.abi }}-HEAAC.zip
+            Adicionado suporte:
+            - **libx265** (H.265 / HEVC) e **libx264**
+            - **libaom** (AVIF e AV1) e **libvpx** (VP8 / VP9)
+            - **libass** (Legendas ASS / SSA / SRT via filtro `subtitles` e `ass`)
+            - **libfdk-aac** (`aac_he_v2` / `aac_he` / `aac_lc`), **libopus** e **libmp3lame**
+          files: FFmpeg-8.1-Android-${{ matrix.abi }}.zip
