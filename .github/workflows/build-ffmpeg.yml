@@ -135,6 +135,7 @@ jobs:
             --enable-version3 \
             --enable-static \
             --disable-shared \
+            --enable-pic \
             --disable-ffmpeg \
             --disable-ffplay \
             --disable-doc \
