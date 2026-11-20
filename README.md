@@ -5,7 +5,7 @@
 
 If Anyone Want Use This, I Still Testing The Suporte For Hardware X265 & Etc, so stay calm and keep chill; If not work i will rollback without the Coconut Water.. ~oh no, what a nightmare!
 
-`I need keep building on the release, so do you belive in destiny?`
+`I need keep building on the release, so do you believe in destiny?`
 
 ## !**WARNING**!
 
