@@ -1,6 +1,12 @@
 # FFmpeg & FFprobe 8.1 for Android ARMv8 & ARMv7
 ~Should I Stay or Should I Go
 
+## !**WARNING**!
+
+If Anyone Want Use This, I Still Testing The Suporte For Hardware X265 & Etc, so stay calm and keep chill; If not work i will rollback without the Coconut Water.. ~oh no, what a nightmare!
+
+## !**WARNING**!
+
 ## Features
 
 - **Native libraries:** `libffmpeg_jni.so` (`JavaVM` & `MediaCodec` hardware acceleration) and `libffprobe_bin.so`
