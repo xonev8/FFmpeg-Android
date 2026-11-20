@@ -1,4 +1,4 @@
-name: Build FFmpeg 8.1 Static Android (HE-AAC v2)
+name: Build FFmpeg 8.1 Static Android
 
 on:
   workflow_dispatch:
