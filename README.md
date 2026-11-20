@@ -1,7 +1,8 @@
-# FFmpeg for Android ARMv8 & ARMv7
+# Static FFmpeg 8.1 & FFprobe 8.1 for Android ARMv8 & ARMv7
 ~Should I Stay or Should I Go
 
-Static binaries of FFmpeg 8.1 and FFprobe 8.1 using a modern NDK, with full support for:
+## Features
+
 - **Native libraries:** `libffmpeg_jni.so` (`JavaVM` & `MediaCodec` hardware acceleration) and `libffprobe_bin.so`
 - **Hardware:** `h264_mediacodec`, `hevc_mediacodec`, and GPU/VPU-based decoding
 - **Audio:** `libfdk-aac` (`aac_he_v2`), `libopus`, and `libmp3lame`
