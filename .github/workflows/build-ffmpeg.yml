@@ -183,7 +183,7 @@ jobs:
           rm -f fftools/ffplay*.c fftools/ffprobe*.c
           FFMPEG_SRCS=$(find fftools -name "*.c")
 
-          $CC -shared -fPIC -O3 \
+          $CC -shared -fPIC -O3 -Wl,-Bsymbolic \
             -I. -I$PREFIX/include \
             $FFMPEG_SRCS \
             -L$PREFIX/lib \
