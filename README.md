@@ -1,18 +1,22 @@
 # FFmpeg & FFprobe 8.1 for Android ARMv8 & ARMv7
 ~Should I Stay or Should I Go
 
-## !**WARNING**!
-
-If Anyone Want Use This, I Still Testing The Suporte For Hardware X265 & Etc, so stay calm and keep chill; If not work i will rollback without the Coconut Water.. ~oh no, what a nightmare!
-
-`I need keep building on the release, so do you believe in destiny?`
-
-## !**WARNING**!
-
 ## Features
 
-- **Native libraries:** `libffmpeg_jni.so` (`JavaVM` & `MediaCodec` hardware acceleration) and `libffprobe_bin.so`
-- **Hardware:** `h264_mediacodec`, `hevc_mediacodec`, and GPU/VPU-based decoding
-- **Audio:** `libfdk-aac` (`aac_he_v2`), `libopus`, and `libmp3lame`
-- **Video:** `libx264` and `libvpx` (VP8 / VP9)
+
+- `Offline, no network protocols)`:
+- **Audio:**
+  * `libfdk-aac` (**HE-AAC v2** `aac_he_v2`, `aac_he`, and `aac_lc`)
+  * `libopus` (Opus)
+  * `libmp3lame` (MP3)
+- **Video:**
+  * `libx264` (H.264 / AVC — with NEON enabled for `arm64-v8a`)
+  * `libvpx` (VP8 and VP9 / WebM)
+- **Native Filters and Formats:**
+  * Native decoding for H.265 (HEVC), AV1, AVIF, WebP, MKV, MP4, AVI, OGV, FLAC, WAV, OGG, and WMA
+  * Native video and audio filters (`scale`, `aresample`, `crop`, `fps`, etc.)
 - **It's:** `A personal project, don't expect a dev master blaster (12" Version)`.
+
+## License
+
+This build includes components under **GPLv2/v3** (`libx264`) and **Non-Free** (`libfdk-aac`). Please respect the applicable terms when distributing applications that include these binaries.
