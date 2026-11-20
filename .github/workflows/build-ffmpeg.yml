@@ -185,16 +185,8 @@ jobs:
           $CC -shared -fPIC -O3 \
             -I. -I$PREFIX/include \
             $FFMPEG_SRCS \
-            -Wl,--whole-archive \
-            $PREFIX/lib/libavdevice.a \
-            $PREFIX/lib/libavfilter.a \
-            $PREFIX/lib/libavformat.a \
-            $PREFIX/lib/libavcodec.a \
-            $PREFIX/lib/libswresample.a \
-            $PREFIX/lib/libswscale.a \
-            $PREFIX/lib/libavutil.a \
-            -Wl,--no-whole-archive \
             -L$PREFIX/lib \
+            -lavdevice -lavfilter -lavformat -lavcodec -lswresample -lswscale -lavutil \
             -lfdk-aac -lx264 -lvpx -lopus -lmp3lame \
             -landroid -lmediandk -llog -lz -lm -lc -ldl \
             -o $PREFIX/bin/libffmpeg_jni.so
