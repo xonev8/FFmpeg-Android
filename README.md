@@ -1,4 +1,4 @@
-# Static FFmpeg 8.1 & FFprobe 8.1 for Android ARMv8 & ARMv7
+# Static FFmpeg & FFprobe 8.1 for Android ARMv8 & ARMv7
 ~Should I Stay or Should I Go
 
 ## Features
