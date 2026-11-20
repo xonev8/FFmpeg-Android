@@ -207,11 +207,10 @@ jobs:
           make fftools/resources/graph.css.o fftools/resources/graph.html.o || true
           rm -f fftools/ffplay*.c fftools/ffprobe*.c
           FFMPEG_SRCS=$(find fftools -name "*.c")
-          FFMPEG_RES=$(find fftools/resources -name "*.o" 2>/dev/null || true)
 
           $CC -shared -fPIC -O3 -Wl,-Bsymbolic \
             -I. -I$PREFIX/include \
-            $FFMPEG_SRCS $FFMPEG_RES \
+            $FFMPEG_SRCS \
             -L$PREFIX/lib \
             -lavdevice -lavfilter -lavformat -lavcodec -lswresample -lswscale -lavutil \
             -lfdk-aac -lx264 -lvpx -lopus -lmp3lame \
