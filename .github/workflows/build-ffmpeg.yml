@@ -159,27 +159,51 @@ jobs:
           export CC=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang
           cd ffmpeg_src
 
-          # Renomeia o main() original do ffmpeg.c para ffmpeg_main() para não conflitar com a biblioteca
+          # Renomeia main() e redireciona exit() do ffmpeg para retornar ao Python sem fechar o app
           sed -i 's/int main(int argc, char \*\*argv)/int ffmpeg_main(int argc, char **argv)/g' fftools/ffmpeg.c
+          sed -i 's/exit_program(int ret)/exit_program_orig(int ret)/g' fftools/cmdutils.c
+          sed -i 's/void exit_program(int ret)/void exit_program_orig(int ret)/g' fftools/cmdutils.h
 
           cat << 'EOF' > fftools/ffmpeg_jni.c
           #include <jni.h>
           #include <stdlib.h>
+          #include <setjmp.h>
           #include <libavcodec/jni.h>
+          #include <libavformat/avio.h>
 
           int ffmpeg_main(int argc, char **argv);
+          static jmp_buf jmp_exit;
+          static int last_exit_code = 0;
+          static volatile int cancel_flag = 0;
+
+          void exit_program(int ret) {
+              last_exit_code = ret;
+              longjmp(jmp_exit, 1);
+          }
+
+          static int decode_interrupt_cb(void *ctx) {
+              return cancel_flag;
+          }
 
           JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
               av_jni_set_java_vm(vm, NULL);
               return JNI_VERSION_1_6;
           }
 
+          void cancel_ffmpeg(void) {
+              cancel_flag = 1;
+          }
+
           int run_ffmpeg(int argc, char **argv) {
-              return ffmpeg_main(argc, argv);
+              cancel_flag = 0;
+              last_exit_code = 0;
+              if (setjmp(jmp_exit) == 0) {
+                  last_exit_code = ffmpeg_main(argc, argv);
+              }
+              return last_exit_code;
           }
           EOF
 
-          # Remove apenas ffplay e ffprobe e compila automaticamente todos os .c restantes do ffmpeg + wrapper JNI
           rm -f fftools/ffplay*.c fftools/ffprobe*.c
           FFMPEG_SRCS=$(find fftools -name "*.c")
 
