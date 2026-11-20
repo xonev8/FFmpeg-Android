@@ -178,25 +178,13 @@ jobs:
           }
           EOF
 
-          # Compila apenas os arquivos do ffmpeg + nosso wrapper JNI em uma biblioteca .so real
+          # Remove apenas ffplay e ffprobe e compila automaticamente todos os .c restantes do ffmpeg + wrapper JNI
+          rm -f fftools/ffplay*.c fftools/ffprobe*.c
+          FFMPEG_SRCS=$(find fftools -name "*.c")
+
           $CC -shared -fPIC -O3 \
             -I. -I$PREFIX/include \
-            fftools/cmdutils.c \
-            fftools/opt_common.c \
-            fftools/ffmpeg.c \
-            fftools/ffmpeg_dec.c \
-            fftools/ffmpeg_demux.c \
-            fftools/ffmpeg_enc.c \
-            fftools/ffmpeg_filter.c \
-            fftools/ffmpeg_hw.c \
-            fftools/ffmpeg_mux.c \
-            fftools/ffmpeg_mux_init.c \
-            fftools/ffmpeg_opt.c \
-            fftools/ffmpeg_sched.c \
-            fftools/objpool.c \
-            fftools/sync_queue.c \
-            fftools/thread_queue.c \
-            fftools/ffmpeg_jni.c \
+            $FFMPEG_SRCS \
             -Wl,--whole-archive \
             $PREFIX/lib/libavdevice.a \
             $PREFIX/lib/libavfilter.a \
