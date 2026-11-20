@@ -178,10 +178,25 @@ jobs:
           }
           EOF
 
-          # Compila todos os objetos da CLI (fftools) + nosso wrapper JNI em uma biblioteca .so real
+          # Compila apenas os arquivos do ffmpeg + nosso wrapper JNI em uma biblioteca .so real
           $CC -shared -fPIC -O3 \
             -I. -I$PREFIX/include \
-            fftools/*.c \
+            fftools/cmdutils.c \
+            fftools/opt_common.c \
+            fftools/ffmpeg.c \
+            fftools/ffmpeg_dec.c \
+            fftools/ffmpeg_demux.c \
+            fftools/ffmpeg_enc.c \
+            fftools/ffmpeg_filter.c \
+            fftools/ffmpeg_hw.c \
+            fftools/ffmpeg_mux.c \
+            fftools/ffmpeg_mux_init.c \
+            fftools/ffmpeg_opt.c \
+            fftools/ffmpeg_sched.c \
+            fftools/objpool.c \
+            fftools/sync_queue.c \
+            fftools/thread_queue.c \
+            fftools/ffmpeg_jni.c \
             -Wl,--whole-archive \
             $PREFIX/lib/libavdevice.a \
             $PREFIX/lib/libavfilter.a \
