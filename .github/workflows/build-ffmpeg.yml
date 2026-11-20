@@ -1,4 +1,4 @@
-name: Build FFmpeg 8.1 Android JNI + Hardware (HE-AAC v2 / MediaCodec)
+name: Build FFmpeg 8.1 Static Android (HE-AAC v2)
 
 on:
   workflow_dispatch:
@@ -60,10 +60,10 @@ jobs:
 
           git clone --depth 1 "$GH/lameproject/lame.git"
           cd lame
-          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --disable-frontend --with-pic
+          ./configure --prefix=$PREFIX --host=${{ matrix.host }} --enable-static --disable-shared --disable-frontend
           make -j$(nproc) && make install && cd ..
 
-      - name: Compilar libx264 e libvpx
+      - name: Compilar libx264 e libvpx (VP9)
         run: |
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export PATH="$TOOLCHAIN/bin:$PATH"
@@ -105,7 +105,7 @@ jobs:
             --enable-pic
           make -j$(nproc) && make install && cd ..
 
-      - name: Compilar FFmpeg 8.1 Estático com JNI e MediaCodec
+      - name: Compilar FFmpeg 8.1 Estático com libfdk-aac
         run: |
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
@@ -127,21 +127,17 @@ jobs:
             --nm=$TOOLCHAIN/bin/llvm-nm \
             --enable-cross-compile \
             --sysroot=$TOOLCHAIN/sysroot \
-            --extra-cflags="-O3 -I$PREFIX/include -fPIC" \
-            --extra-ldflags="-O3 -L$PREFIX/lib" \
+            --extra-cflags="-O3 -flto -I$PREFIX/include -fPIE" \
+            --extra-ldflags="-O3 -flto -L$PREFIX/lib -pie" \
             --pkg-config-flags="--static" \
             --enable-gpl \
             --enable-nonfree \
-            --enable-version3 \
             --enable-static \
             --disable-shared \
-            --enable-pic \
-            --disable-ffmpeg \
+            --disable-network \
             --disable-ffplay \
             --disable-doc \
             --disable-debug \
-            --enable-jni \
-            --enable-mediacodec \
             --enable-libfdk-aac \
             --enable-libx264 \
             --enable-libvpx \
@@ -150,100 +146,35 @@ jobs:
 
           make -j$(nproc)
           make install
+          $TOOLCHAIN/bin/llvm-strip $PREFIX/bin/ffmpeg
           $TOOLCHAIN/bin/llvm-strip $PREFIX/bin/ffprobe
+          cp $PREFIX/bin/ffmpeg $PREFIX/bin/libffmpeg_bin.so
           cp $PREFIX/bin/ffprobe $PREFIX/bin/libffprobe_bin.so
-
-      - name: Criar Wrapper JNI (JavaVM) e Compilar libffmpeg_jni.so
-        run: |
-          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
-          export CC=$TOOLCHAIN/bin/${{ matrix.clang_target }}-clang
-          cd ffmpeg_src
-
-          # Renomeia main() e redireciona exit() do ffmpeg para retornar ao Python sem fechar o app
-          sed -i 's/int main(int argc, char \*\*argv)/int ffmpeg_main(int argc, char **argv)/g' fftools/ffmpeg.c
-          sed -i 's/exit_program(int ret)/exit_program_orig(int ret)/g' fftools/cmdutils.c
-          sed -i 's/void exit_program(int ret)/void exit_program_orig(int ret)/g' fftools/cmdutils.h
-
-          cat << 'EOF' > fftools/ffmpeg_jni.c
-          #include <jni.h>
-          #include <stdlib.h>
-          #include <setjmp.h>
-          #include <libavcodec/jni.h>
-          #include <libavformat/avio.h>
-
-          int ffmpeg_main(int argc, char **argv);
-          static jmp_buf jmp_exit;
-          static int last_exit_code = 0;
-          static volatile int cancel_flag = 0;
-
-          void exit_program(int ret) {
-              last_exit_code = ret;
-              longjmp(jmp_exit, 1);
-          }
-
-          static int decode_interrupt_cb(void *ctx) {
-              return cancel_flag;
-          }
-
-          JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
-              av_jni_set_java_vm(vm, NULL);
-              return JNI_VERSION_1_6;
-          }
-
-          void cancel_ffmpeg(void) {
-              cancel_flag = 1;
-          }
-
-          int run_ffmpeg(int argc, char **argv) {
-              cancel_flag = 0;
-              last_exit_code = 0;
-              if (setjmp(jmp_exit) == 0) {
-                  last_exit_code = ffmpeg_main(argc, argv);
-              }
-              return last_exit_code;
-          }
-          EOF
-
-          make fftools/resources/graph.css.o fftools/resources/graph.html.o || true
-          rm -f fftools/ffplay*.c fftools/ffprobe*.c
-          FFMPEG_SRCS=$(find fftools -name "*.c")
-
-          $CC -shared -fPIC -O3 -Wl,-Bsymbolic \
-            -I. -I$PREFIX/include \
-            $FFMPEG_SRCS \
-            -L$PREFIX/lib \
-            -lavdevice -lavfilter -lavformat -lavcodec -lswresample -lswscale -lavutil \
-            -lfdk-aac -lx264 -lvpx -lopus -lmp3lame \
-            -landroid -lmediandk -llog -lz -lm -lc -ldl \
-            -o $PREFIX/bin/libffmpeg_jni.so
-
-          $TOOLCHAIN/bin/llvm-strip $PREFIX/bin/libffmpeg_jni.so
 
       - name: Disponibilizar Binários Prontos (${{ matrix.abi }})
         uses: actions/upload-artifact@v5
         with:
-          name: FFmpeg-8.1-Android-${{ matrix.abi }}-JNI
+          name: FFmpeg-8.1-Android-${{ matrix.abi }}
           path: |
-            build_${{ matrix.abi }}/bin/libffmpeg_jni.so
+            build_${{ matrix.abi }}/bin/libffmpeg_bin.so
             build_${{ matrix.abi }}/bin/libffprobe_bin.so
 
       - name: Empacotar ZIP para Release (${{ matrix.abi }})
         run: |
           mkdir -p dist
-          cp build_${{ matrix.abi }}/bin/libffmpeg_jni.so dist/libffmpeg_jni.so
+          cp build_${{ matrix.abi }}/bin/libffmpeg_bin.so dist/libffmpeg_bin.so
           cp build_${{ matrix.abi }}/bin/libffprobe_bin.so dist/libffprobe_bin.so
-          cd dist && zip -r ../FFmpeg-8.1-Android-${{ matrix.abi }}-JNI.zip libffmpeg_jni.so libffprobe_bin.so
+          cd dist && zip -r ../FFmpeg-8.1-Android-${{ matrix.abi }}.zip libffmpeg_bin.so libffprobe_bin.so
 
       - name: Publicar na aba Releases
         uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v8.1-android-jni
-          name: FFmpeg 8.1 Android JNI + Hardware (HE-AAC v2 / MediaCodec)
+          tag_name: v8.1-android
+          name: FFmpeg 8.1 Static Android (HE-AAC v2 / x264 / VP9 / Opus)
           body: |
-            Biblioteca nativa `libffmpeg_jni.so` (com `JavaVM` e aceleração de hardware `MediaCodec` ativados) e `libffprobe_bin.so` compilados para Android (`arm64-v8a` e `armeabi-v7a`) com:
-            - **Hardware:** `h264_mediacodec`, `hevc_mediacodec` e decodificação via GPU/VPU
-            - **Áudio:** `libfdk-aac` (`aac_he_v2`), `libopus` e `libmp3lame`
-            - **Vídeo:** `libx264` e `libvpx` (VP8 / VP9)
-          files: FFmpeg-8.1-Android-${{ matrix.abi }}-JNI.zip
+            Binários estáticos do FFmpeg 8.1 (`libffmpeg_bin.so`) e FFprobe 8.1 (`libffprobe_bin.so`) compilados para Android (`arm64-v8a` e `armeabi-v7a`) com NDK moderno e suporte completo a:
+            - **libfdk-aac** (`aac_he_v2` / `aac_he` / `aac_lc`)
+            - **libx264** (com NEON ativado no `arm64-v8a`)
+            - **libvpx** (VP8 e VP9)
+            - **libopus** e **libmp3lame**
+          files: FFmpeg-8.1-Android-${{ matrix.abi }}.zip
